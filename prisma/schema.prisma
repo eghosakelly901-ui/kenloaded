@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UploadStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         UserRole     @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  playlists    Playlist[]
+  favorites    Favorite[]
+  follows     ArtistFollow[]
+  downloads    Download[]
+  plays        Play[]
+  uploadedSongs Song[]      @relation("Uploader")
+}
+
+model Artist {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  bio         String   @default("")
+  imageKey    String?
+  socials     Json?
+  createdAt   DateTime @default(now())
+  songs       Song[]
+  albums      Album[]
+  followers   ArtistFollow[]
+}
+
+model ArtistFollow {
+  userId    String
+  artistId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  @@id([userId, artistId])
+  @@index([artistId, createdAt])
+}
+
+model Genre {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  songs     Song[]
+}
+
+model Album {
+  id          String   @id @default(cuid())
+  title       String
+  artistId    String
+  artworkKey  String?
+  releaseDate DateTime?
+  artist      Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  songs       Song[]
+  createdAt   DateTime @default(now())
+  @@unique([artistId, title])
+}
+
+model Song {
+  id                 String       @id @default(cuid())
+  title              String
+  slug               String       @unique
+  description        String       @default("")
+  lyrics             String       @default("")
+  socialLinks        Json?
+  featuredArtist     String?
+  artistId           String
+  albumId            String?
+  genreId            String
+  uploaderId         String?
+  audioKey           String
+  artworkKey         String?
+  audioMime          String
+  audioSize          Int
+  artworkSize        Int?
+  uploadStatus       UploadStatus @default(PENDING)
+  isDownloadable     Boolean      @default(false)
+  isFeatured         Boolean      @default(false)
+  isTrending         Boolean      @default(false)
+  copyrightConfirmed Boolean
+  releaseDate        DateTime?
+  durationSeconds    Int?
+  playCount          Int          @default(0)
+  downloadCount      Int          @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  artist             Artist       @relation(fields: [artistId], references: [id])
+  album              Album?       @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  genre              Genre        @relation(fields: [genreId], references: [id])
+  uploader           User?        @relation("Uploader", fields: [uploaderId], references: [id], onDelete: SetNull)
+  plays              Play[]
+  downloads          Download[]
+  favorites          Favorite[]
+  playlistEntries    PlaylistSong[]
+  @@index([uploadStatus, isFeatured, isTrending])
+  @@index([artistId, releaseDate])
+}
+
+model Playlist {
+  id        String         @id @default(cuid())
+  userId    String
+  name      String
+  visibility Visibility   @default(PRIVATE)
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songs     PlaylistSong[]
+}
+
+model PlaylistSong {
+  playlistId String
+  songId     String
+  position   Int
+  addedAt    DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  @@id([playlistId, songId])
+  @@unique([playlistId, position])
+}
+
+model Favorite {
+  userId    String
+  songId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  @@id([userId, songId])
+}
+
+model Play {
+  id        String   @id @default(cuid())
+  songId    String
+  userId    String?
+  playedAt  DateTime @default(now())
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([songId, playedAt])
+}
+
+model Download {
+  id           String   @id @default(cuid())
+  songId       String
+  userId       String?
+  downloadedAt DateTime @default(now())
+  song         Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([songId, downloadedAt])
+}
